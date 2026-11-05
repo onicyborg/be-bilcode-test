@@ -11,3 +11,7 @@ The runtime env file and temporary registry login are not baked into images. Pro
 For frontend hosted on Vercel instead, use its Git integration and configure development as the deployment branch; disable the VPS workflow if it is not used. The Next.js proxy still has Vercel upload-size limits that require a separate upload-flow adjustment before full 5 MiB support.
 
 Use Neon pooled DATABASE_URL for runtime traffic and optional direct DIRECT_DATABASE_URL for Prisma CLI migrations. If DIRECT_DATABASE_URL is empty, Prisma uses DATABASE_URL.
+
+Host port mapping: `127.0.0.1:3101:3001`. A reverse proxy running directly on the VPS should route `https://api-bilcode-test.hompimpa.biz.id` to `127.0.0.1:3101`. Keep the application port at 3001. Verify host port 3101 is unused before deploying. If the proxy runs inside Docker, use a shared network and the container service address instead of host loopback.
+
+Set Development secret VPS_SSH_PORT=4496 for this VPS. If omitted, the workflow defaults to SSH port 22. This affects SSH/SCP only, not container/application ports. VPS_KNOWN_HOSTS must contain the verified key for [host]:4496.
