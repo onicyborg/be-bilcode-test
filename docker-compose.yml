@@ -1,0 +1,20 @@
+name: siklus-api
+services:
+  api:
+    image: ${IMAGE:?IMAGE is required}
+    restart: unless-stopped
+    env_file: .env
+    ports:
+      - "127.0.0.1:3001:3001"
+    networks:
+      siklus:
+        aliases: [api]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+networks:
+  siklus:
+    external: true
+    name: siklus

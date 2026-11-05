@@ -1,0 +1,7 @@
+ALTER TYPE waste_category ADD VALUE 'GLASS';
+ALTER TYPE waste_category ADD VALUE 'METAL';
+ALTER TYPE waste_category ADD VALUE 'CARDBOARD';
+ALTER TYPE waste_category ADD VALUE 'CLOTHES';
+ALTER TYPE waste_category ADD VALUE 'FOOTWEAR';
+ALTER TYPE waste_category ADD VALUE 'BATTERY';
+ALTER TYPE waste_category ADD VALUE 'OTHER';

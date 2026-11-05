@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.env
+
+storage/
+
+src/generated/prisma/
+
+.env*
+!.env.example
+*.log
+*.pem
+*.key
+*.jks
+*.keystore

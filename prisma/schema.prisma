@@ -1,0 +1,142 @@
+generator client {
+  provider            = "prisma-client"
+  output              = "../src/generated/prisma"
+  importFileExtension = ""
+  moduleFormat        = "cjs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model or at least one of its fields has comments in the database, and requires an additional setup for migrations: Read more: https://pris.ly/d/database-comments
+model audit_logs {
+  id               String     @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  request_id       String?    @db.Uuid
+  actor_id         String?    @db.Uuid
+  actor_role       user_role?
+  action           String     @db.VarChar(80)
+  resource_type    String?    @db.VarChar(50)
+  resource_id      String?    @db.Uuid
+  http_method      String?    @db.VarChar(10)
+  route_template   String?    @db.VarChar(200)
+  http_status      Int?       @db.SmallInt
+  outcome          String     @db.VarChar(20)
+  request_payload  Json       @default("{}")
+  response_payload Json       @default("{}")
+  duration_ms      Int?
+  created_at       DateTime   @default(now()) @db.Timestamptz(6)
+
+  @@index([actor_id, created_at, id])
+  @@index([created_at, id])
+  @@index([resource_type, resource_id, created_at, id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model email_verifications {
+  id              String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  user_id         String   @unique @db.Uuid
+  token_digest    String   @unique
+  expires_at      DateTime @db.Timestamptz(6)
+  users           users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  failed_attempts Int      @default(0) @db.SmallInt
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model refresh_sessions {
+  id           String   @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  user_id      String   @db.Uuid
+  token_digest String   @unique
+  expires_at   DateTime @db.Timestamptz(6)
+  users        users    @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([user_id], map: "refresh_sessions_user")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+model report_status_history {
+  id            String         @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  report_id     String         @db.Uuid
+  changed_by_id String         @db.Uuid
+  from_status   report_status?
+  to_status     report_status
+  reason        String?        @db.VarChar(500)
+  created_at    DateTime       @default(now()) @db.Timestamptz(6)
+  users         users          @relation(fields: [changed_by_id], references: [id], onUpdate: NoAction)
+  reports       reports        @relation(fields: [report_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([report_id, created_at, id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This model has constraints using non-default deferring rules and requires additional setup for migrations. Visit https://pris.ly/d/constraint-deferring for more info.
+model reports {
+  id                    String                  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  reporter_id           String                  @db.Uuid
+  description           String                  @db.VarChar(1000)
+  latitude              Decimal                 @db.Decimal(9, 6)
+  longitude             Decimal                 @db.Decimal(9, 6)
+  photo_key             String
+  predicted_category    waste_category?
+  prediction_confidence Decimal?                @db.Decimal(5, 4)
+  prediction_model      String?                 @db.VarChar(100)
+  status                report_status           @default(PENDING)
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  deleted_at            DateTime?               @db.Timestamptz(6)
+  report_status_history report_status_history[]
+  users                 users                   @relation(fields: [reporter_id], references: [id], onUpdate: NoAction)
+
+  @@index([created_at, id])
+  @@index([deleted_at])
+  @@index([reporter_id, created_at, id])
+  @@index([status, created_at, id])
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model users {
+  id                    String                  @id @default(dbgenerated("uuidv7()")) @db.Uuid
+  email                 String                  @unique @db.VarChar(254)
+  name                  String                  @db.VarChar(100)
+  password_hash         String
+  role                  user_role               @default(USER)
+  is_active             Boolean                 @default(true)
+  created_at            DateTime                @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime                @default(now()) @db.Timestamptz(6)
+  deleted_at            DateTime?               @db.Timestamptz(6)
+  email_verified_at     DateTime?               @db.Timestamptz(6)
+  email_verifications   email_verifications?
+  refresh_sessions      refresh_sessions[]
+  report_status_history report_status_history[]
+  reports               reports[]
+
+  @@index([deleted_at])
+}
+
+enum report_status {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+enum user_role {
+  USER
+  ADMIN
+}
+
+enum waste_category {
+  ORGANIC
+  PLASTIC
+  PAPER
+  GLASS
+  METAL
+  CARDBOARD
+  CLOTHES
+  FOOTWEAR
+  BATTERY
+  OTHER
+}
