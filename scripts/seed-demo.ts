@@ -31,10 +31,21 @@ async function seed() {
           select: { id: true, email: true, role: true },
           take: 2,
         });
+        if (matches.length === 0 && target.email) {
+          const existing = await client.users.findUnique({ where: { email: target.email }, select: { id: true } });
+          if (existing) throw new Error(`Account exists but is not an active, verified ${target.role}; review it manually.`);
+          const account = await client.users.create({
+            data: { email: target.email, name: target.role === 'ADMIN' ? (process.env.DEMO_ADMIN_NAME?.trim() || 'Admin Demo') : (process.env.DEMO_USER_NAME?.trim() || 'Pelapor Demo'),
+              role: target.role, password_hash: hashes[targets.indexOf(target)], email_verified_at: new Date() },
+            select: { id: true, email: true, role: true },
+          });
+          selected.push({ ...account, created: true });
+          continue;
+        }
         if (matches.length !== 1) {
           throw new Error(`Expected exactly one active, verified ${target.role}. Set the corresponding DEMO_*_EMAIL.`);
         }
-        selected.push(matches[0]);
+        selected.push({ ...matches[0], created: false });
       }
 
       for (const [index, account] of selected.entries()) {
@@ -44,7 +55,7 @@ async function seed() {
         });
         await client.refresh_sessions.deleteMany({ where: { user_id: account.id } });
         await client.audit_logs.create({
-          data: { request_id: requestId, action: 'DEMO_PASSWORD_RESET', resource_type: 'user',
+          data: { request_id: requestId, action: account.created ? 'DEMO_ACCOUNT_CREATE' : 'DEMO_PASSWORD_RESET', resource_type: 'user',
             resource_id: account.id, outcome: 'SUCCESS', response_payload: { role: account.role } },
         });
       }

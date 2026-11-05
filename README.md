@@ -60,3 +60,5 @@ NestJS exposes a shared Prisma client via `Database.prisma`. Dashboard reads use
 ### Reset demo credentials for existing accounts
 
 Run `pnpm exec prisma generate` first. Set `DEMO_PASSWORD` in the command environment and run `pnpm exec prisma db seed`. The seeder updates exactly one active, verified Admin and one active, verified User. It selects the sole eligible account per role by default. Set `DEMO_ADMIN_EMAIL` or `DEMO_USER_EMAIL` to pick a specific account when there are multiple. The seeder resets both passwords in one transaction and revokes their refresh sessions.
+
+Demo seeding: set DEMO_ADMIN_EMAIL, DEMO_USER_EMAIL and DEMO_PASSWORD in the local environment, then run `pnpm exec prisma db seed`. Explicit emails create missing active, verified accounts; matching existing active/verified roles are reset and their refresh sessions revoked. Conflicting, inactive, deleted or unverified accounts are rejected rather than silently reactivated. Account changes and audit events share one transaction. Optional DEMO_ADMIN_NAME / DEMO_USER_NAME apply on creation only. Never use demo credentials for a production system.
