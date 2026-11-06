@@ -19,7 +19,9 @@ pnpm run build
 pnpm start
 ```
 
-Swagger UI is at http://localhost:3001/api/docs and OpenAPI JSON at http://localhost:3001/api/docs/openapi.json. Swagger covers authentication, reports, dashboard, and users. The [project API contract](../docs/API.md) also documents the internal prediction request and the audit and retention rules.
+Swagger UI is at http://localhost:3001/api/docs and OpenAPI JSON at http://localhost:3001/api/docs/openapi.json. Swagger covers authentication, reports, dashboard, and users. The [project API contract](docs/API.md) also documents the internal prediction request and the audit and retention rules.
+
+The [current ERD](docs/ERD.md) documents the six application tables and their relationships. Import [schema.dbml](docs/schema.dbml) into dbdiagram.io for an editable diagram. It is checked against PostgreSQL 18.6 and Prisma migrations 001–005, including the ten waste categories, verification codes, refresh sessions, and retained audit logs. The [SQL snapshot](docs/schema.sql) preserves foreign-key deferrability that DBML cannot express; use Prisma Migrate for installation.
 
 Register, read the verification code in the mailbox, call verify-email with email and the six-digit code as a string, then log in. Codes expire after 10 minutes. Codes issued before migration 003 must be requested again. A new verification code invalidates the previous one. If the email is missing, request a new code with resend-verification. Set ADMIN_EMAIL and ADMIN_PASSWORD in the command environment and run `pnpm run seed:admin` to create a verified demo admin. Use the access token in the Swagger Authorize dialog and the refresh token in the refresh or logout body.
 

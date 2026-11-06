@@ -1,6 +1,11 @@
 Project smart_waste {
   database_type: 'PostgreSQL'
-  Note: 'Target PostgreSQL 18. Setiap primary key menggunakan UUIDv7.'
+  Note: '''
+    Siklus — schema aplikasi, diverifikasi terhadap Neon PostgreSQL 18.6 pada 6 November 2026.
+    Sumber: prisma/schema.prisma dan migrasi 001_initial sampai 005_expand_waste_categories.
+    Enam tabel aplikasi; tabel internal _prisma_migrations tidak ditampilkan.
+    Semua primary key memakai uuidv7() bawaan PostgreSQL 18.
+  '''
 }
 
 Enum user_role {
@@ -28,12 +33,13 @@ Enum waste_category {
   OTHER
 }
 
-Table users {
+Table users [headercolor: #27634b] {
+  Note: 'Akun Admin/User. Soft delete memakai deleted_at. Akses memerlukan akun aktif, email terverifikasi, dan belum dihapus.'
   id uuid [pk, default: `uuidv7()`]
   email varchar(254) [not null, unique]
   name varchar(100) [not null]
   password_hash text [not null]
-  email_verified_at timestamptz
+  email_verified_at timestamptz [note: 'NULL berarti email belum terverifikasi']
   role user_role [not null, default: 'USER']
   is_active boolean [not null, default: true]
   created_at timestamptz [not null, default: `now()`]
@@ -51,16 +57,17 @@ Table users {
   }
 }
 
-Table reports {
+Table reports [headercolor: #27634b] {
+  Note: 'Satu laporan memiliki satu foto di R2 dan maksimal satu prediksi kategori utama. Prediksi boleh seluruhnya NULL jika ML tidak tersedia. Purge setelah satu bulan kalender UTC sejak deleted_at, diproses job harian. FK reporter_id bersifat DEFERRABLE INITIALLY IMMEDIATE.'
   id uuid [pk, default: `uuidv7()`]
   reporter_id uuid [not null]
   description varchar(1000) [not null]
   latitude decimal(9,6) [not null]
   longitude decimal(9,6) [not null]
-  photo_key text [not null]
+  photo_key text [not null, note: 'Object key bucket R2 privat; bukan isi foto atau URL publik']
   predicted_category waste_category
   prediction_confidence decimal(5,4)
-  prediction_model varchar(100)
+  prediction_model varchar(100) [note: 'Versi model saat laporan dibuat; hasil historis tidak otomatis dihitung ulang']
   status report_status [not null, default: 'PENDING']
   created_at timestamptz [not null, default: `now()`]
   updated_at timestamptz [not null, default: `now()`]
@@ -80,11 +87,12 @@ Table reports {
   }
 }
 
-Table report_status_history {
+Table report_status_history [headercolor: #27634b] {
+  Note: 'Riwayat status laporan. FK report_id dan changed_by_id bersifat DEFERRABLE INITIALLY IMMEDIATE. Alasan wajib untuk status REJECTED.'
   id uuid [pk, default: `uuidv7()`]
   report_id uuid [not null]
   changed_by_id uuid [not null]
-  from_status report_status
+  from_status report_status [note: 'NULL hanya untuk peristiwa awal menuju PENDING']
   to_status report_status [not null]
   reason varchar(500)
   created_at timestamptz [not null, default: `now()`]
@@ -100,18 +108,19 @@ Table report_status_history {
   }
 }
 
-Ref: reports.reporter_id > users.id [delete: restrict]
-Ref: report_status_history.report_id > reports.id [delete: cascade]
-Ref: report_status_history.changed_by_id > users.id [delete: restrict]
+Ref reports_reporter_id_fkey: reports.reporter_id > users.id [delete: restrict, update: no action]
+Ref report_status_history_report_id_fkey: report_status_history.report_id > reports.id [delete: cascade, update: no action]
+Ref report_status_history_changed_by_id_fkey: report_status_history.changed_by_id > users.id [delete: restrict, update: no action]
 
-Table audit_logs {
+Table audit_logs [headercolor: #64748b] {
+  Note: 'Log dipertahankan setelah purge akun/laporan. actor_id dan resource_id adalah snapshot tanpa FK. Payload memakai allowlist, tanpa password, token/kode mentah, email, koordinat, atau isi foto. Mutasi sukses dan audit terkait berada dalam satu transaksi.'
   id uuid [pk, default: `uuidv7()`]
   request_id uuid [note: 'Korelasi antarperistiwa dalam satu request']
   actor_id uuid [note: 'Snapshot ID tanpa FK agar log tetap ada setelah purge']
   actor_role user_role
   action varchar(80) [not null]
   resource_type varchar(50)
-  resource_id uuid
+  resource_id uuid [note: 'Snapshot resource; sengaja tanpa FK']
   http_method varchar(10)
   route_template varchar(200)
   http_status smallint
@@ -135,34 +144,51 @@ Table audit_logs {
   }
 }
 
-Table email_verifications {
+Table email_verifications [headercolor: #496a86] {
+  Note: 'Setiap user memiliki 0 atau 1 record verifikasi karena user_id UNIQUE. Menyimpan digest kode 6 digit, bukan kode mentah. Berlaku 10 menit, maksimal 5 percobaan gagal; resend mengganti kode lama. FK tidak deferrable.'
   id uuid [pk, default: `uuidv7()`]
   user_id uuid [not null, unique]
-  token_digest text [not null, unique]
+  token_digest text [not null, unique, note: 'Digest verifikasi; tidak menyimpan kode mentah']
   expires_at timestamptz [not null]
 
   failed_attempts smallint [not null, default: 0]
 
   checks {
     `failed_attempts BETWEEN 0 AND 5` [name: 'email_verifications_failed_attempts']
-    `uuid_extract_version(id) IS NOT DISTINCT FROM 7` [name: 'email_verifications_id_v7']
+    `uuid_extract_version(id) IS NOT DISTINCT FROM 7` [name: 'email_verifications_id_check']
   }
 }
 
-Table refresh_sessions {
+Table refresh_sessions [headercolor: #496a86] {
+  Note: 'Satu user dapat memiliki banyak sesi. Refresh JWT berlaku 7 hari dan dirotasi sekali pakai; hanya digest yang disimpan. Access JWT 15 menit tidak memiliki tabel tersendiri. FK tidak deferrable.'
   id uuid [pk, default: `uuidv7()`]
   user_id uuid [not null]
-  token_digest text [not null, unique]
+  token_digest text [not null, unique, note: 'Digest refresh token; bukan JWT mentah']
   expires_at timestamptz [not null]
 
   indexes {
-    user_id
+    user_id [name: 'refresh_sessions_user']
   }
 
   checks {
-    `uuid_extract_version(id) IS NOT DISTINCT FROM 7` [name: 'refresh_sessions_id_v7']
+    `uuid_extract_version(id) IS NOT DISTINCT FROM 7` [name: 'refresh_sessions_id_check']
   }
 }
 
-Ref: email_verifications.user_id > users.id [delete: cascade]
-Ref: refresh_sessions.user_id > users.id [delete: cascade]
+Ref email_verifications_user_id_fkey: users.id - email_verifications.user_id [delete: cascade, update: no action]
+Ref refresh_sessions_user_id_fkey: refresh_sessions.user_id > users.id [delete: cascade, update: no action]
+
+TableGroup authentication [color: #dce8f1] {
+  users
+  email_verifications
+  refresh_sessions
+}
+
+TableGroup waste_reporting [color: #e8f0e5] {
+  reports
+  report_status_history
+}
+
+TableGroup observability [color: #e8ecf0] {
+  audit_logs
+}
